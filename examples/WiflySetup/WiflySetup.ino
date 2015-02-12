@@ -8,9 +8,14 @@
 
 #include "MinimalWiflyConfig.h"
 
+// if you use a MEGA, you can hook up the Wifly to a harware-serial and comment the following lines out:
 #include "SoftwareSerial.h"
 SoftwareSerial softSerial(3,2);
 MinimalWiflyConfig wifly (softSerial, Serial);  // first Parameter is the serial used for communication with  the Wifly, second is for debugging
+
+//if you use a MEGA and a harware-serial, use the following line instead. The first argument is the Serial the Wifly is connected to.
+//MinimalWiflyConfig wifly (Serial3, Serial);  //
+
 void setup()
 { 
 
@@ -29,7 +34,7 @@ void setup()
   8000,                   // WiFly receive port -  incoming packets have to be sent there
   "255.255.255.255",      // Where to send outgoing Osc messages. "255.255.255.255" will send to all hosts in the subnet
   8001,                   // outgoing port - outgoing packets will be sent there
-  MinimalWiflyConfig::PROTO_UDP //protocol bit (see datasheet or source)
+  MinimalWiflyConfig::PROTO_UDP //protocol bit (see datasheet or library source code)
   );
   Serial.print(F("Wifly setup finished - successful (0=no, 1=yes): "));
   Serial.println(success);
