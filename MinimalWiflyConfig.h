@@ -67,7 +67,7 @@ interCharTimeoutMillis(10)
 }
 ////////////////////////////////
 bool MinimalWiflyConfig::setup(
-const unsigned long wiflySerialSpeed,
+const long wiflySerialSpeed,
 const bool setBaudRate,	///< should we change the baudrate if the module isn't set up for the one specified (WARNING! - this can lock you out if you choose one that is too high!)
 const char* SSID,
 const char* password,
