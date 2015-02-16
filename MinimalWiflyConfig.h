@@ -1,6 +1,5 @@
 #pragma once
 #include "Arduino.h"
-#include "SoftwareSerial.h"
 
 //debug output that can be disabled but is still checked at compile time.
 
@@ -68,7 +67,7 @@ interCharTimeoutMillis(10)
 }
 ////////////////////////////////
 bool MinimalWiflyConfig::setup(
-const long wiflySerialSpeed,
+const unsigned long wiflySerialSpeed,
 const bool setBaudRate,	///< should we change the baudrate if the module isn't set up for the one specified (WARNING! - this can lock you out if you choose one that is too high!)
 const char* SSID,
 const char* password,
@@ -238,7 +237,7 @@ unsigned long MinimalWiflyConfig::autoDetectBaudrate(unsigned long firstGuess){
 bool MinimalWiflyConfig::changeBaudRateTo(unsigned long newRate){
   unsigned long detectedRate=autoDetectBaudrate(newRate);
   if(detectedRate!=0){
-    sendCmdWaitAndRelay(F("set uart baud "),(int)newRate,(bool)DEBUG_WIFI_RESPONSE); // set speed
+    sendCmdWaitAndRelay(F("set uart baud "),(long)newRate,(bool)DEBUG_WIFI_RESPONSE); // set speed
     sendCmdWaitAndRelay(F("reboot"),(bool)DEBUG_WIFI_RESPONSE);                       //reboot to apply changes
   }
   else{
