@@ -238,6 +238,7 @@ bool MinimalWiflyConfig::changeBaudRateTo(unsigned long newRate){
   unsigned long detectedRate=autoDetectBaudrate(newRate);
   if(detectedRate!=0){
     sendCmdWaitAndRelay(F("set uart baud "),(long)newRate,(bool)DEBUG_WIFI_RESPONSE); // set speed
+    sendCmdWaitAndRelay(F("save"),(bool)DEBUG_WIFI_RESPONSE);                       //reboot to apply changes
     sendCmdWaitAndRelay(F("reboot"),(bool)DEBUG_WIFI_RESPONSE);                       //reboot to apply changes
   }
   else{
