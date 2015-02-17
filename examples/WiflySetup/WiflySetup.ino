@@ -27,7 +27,7 @@ void setup()
   // The following protocols are supported by the Wifly 
   //  PROTO_UDP             // bidirectional UDP. Packets are sent after a timout. You want this for OSC
   //  PROTO_TCP_IN_OUT=2,   // accept incoming or make outgoing TCP connections 
-  //  PROTO_TCP_SECURE=4,   // pseudo-secure TCO mode (see users manual for details)
+  //  PROTO_TCP_SECURE=4,   // pseudo-secure TCP mode (see users manual for details)
   //  PROTO_TCP_OUT_ONLY=8, // only allow outgoing TCP connections
   //  PROTO_HTTP_CLIENT=16  // (see users manual for details)
 	
