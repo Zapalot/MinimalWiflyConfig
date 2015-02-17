@@ -2,7 +2,7 @@
 #include "Arduino.h"
 
 //debug output that can be disabled but is still checked at compile time.
-
+#define debugSerialType Stream          // you can change this to either 'HardwareSerial' or 'SoftwareSerial' as you need it
 #define TRACE_WIFLY_S(x) do { if (DEBUG_WIFI_STATUS) debugSerial.print( x); } while (0)
 #define TRACELN_WIFLY_S(x) do { if (DEBUG_WIFI_STATUS) debugSerial.println( x); } while (0)
 
@@ -40,10 +40,11 @@ public:
   const unsigned int protocol          ///< TCP or UDP?
   );
   void showStatus();              ///< prints information about connection, adresses etc. to the debug serial
-
+  
+  void exitCmdMode();                  ///< try to exit cmd mode of wifly (will send data over the network if not currently in cmd mode)
   boolean enterCmdMode();                  ///< try to enter cmd mode of wifly (takes time)
-  unsigned long autoDetectBaudrate(unsigned long firstGuess);   ///< try to find a working Baud rate for the module.
-  bool changeBaudRateTo(unsigned long newRate); ///< autodetect a working Baudrate and change the setting.
+  
+  void changeBaudRateTo(unsigned long newRate); ///< issue "change baud rate" commands at all known rates. (brute force...)
 
   // a bunch of convenience functions for sending commands and receiving replies
   void waitForChar(Stream &in, unsigned long timeout);    ///< waits at most timeout millis for another char to arrive.
@@ -78,18 +79,31 @@ const char* remoteHost,
 const long  remotePort,
 const unsigned int protocol  ///TCP or UDP?
 ){
-  if(setBaudRate){
-    changeBaudRateTo(wiflySerialSpeed);
+  // try to connect with given baudrate
+  TRACE_WIFLY_S(F("Trying to connect to WiFly with "));
+  TRACELN_WIFLY_S(wiflySerialSpeed); 
+  wiflySerial.begin(wiflySerialSpeed); // initialize serial to wifly 
+  exitCmdMode(); //issue "exit cmd mode" command first to make sure we can enter it again...
+  
+  if (!enterCmdMode()){ //try to enter CMD-mode... if it fails:
+    TRACELN_WIFLY_S(F("Connection failed."));
+	if(setBaudRate){
+		TRACELN_WIFLY_S(F("Trying to set Baudrate..."));
+		changeBaudRateTo(wiflySerialSpeed); // try to change baud rate - continue even if it didn't work
+		// initialize serial to wifly 
+		wiflySerial.begin(wiflySerialSpeed);
+		exitCmdMode(); //issue "exit cmd mode" command first to make sure we can enter it again...
+		if (!enterCmdMode())return false; // try to enter command mode - if no "CMD" reply comes from the Wifly, something has gone wrong and we stop.
+	}else return false; // setting CMD mode has failed, and we were told to not change the rate - give up...
   }
 
-  // initialize serial to wifly 
-  wiflySerial.begin(wiflySerialSpeed);
-  sendCmdWaitAndRelay(F("exit"),DEBUG_WIFI_RESPONSE); //exit cmd mode first to make sure we can enter it again...
-
-  if (!enterCmdMode())return false;
-  ;
-
   // now lets set that thing up...
+  // first we turn off all kinds of status messages that condfuse our response matching- this might have to be done twice...
+  sendCmdWaitAndRelay(F("set u m 1"),DEBUG_WIFI_RESPONSE);           // turn off echo  
+  sendCmdWaitAndRelay(F("set sys printlvl 0"),DEBUG_WIFI_RESPONSE);  // turn off debug output of the module
+  sendCmdWaitAndRelay(F("set comm remote 0"),DEBUG_WIFI_RESPONSE);   // dont send a hello message to a client that has opened a tcp connection
+
+  
   // set ip or dhcp.
   if(localIP==0){
     //set dhcp = on
@@ -99,6 +113,7 @@ const unsigned int protocol  ///TCP or UDP?
     sendCmdWaitAndRelay(F("set ip dhcp 0"),DEBUG_WIFI_RESPONSE); // disable dhcp
     sendCmdWaitAndRelay(F("set ip a "),localIP,DEBUG_WIFI_RESPONSE); // set adress
   }
+  
   sendCmdWaitAndRelay(F("set ip protocol "),(int)protocol,DEBUG_WIFI_RESPONSE);   //set protocol (must be one or a sum of constants in protocolType)
   sendCmdWaitAndRelay(F("set ip localport "),localPort,DEBUG_WIFI_RESPONSE); //set incoming port
   sendCmdWaitAndRelay(F("set ip host "),remoteHost,DEBUG_WIFI_RESPONSE);     //set outgoing target ip
@@ -157,8 +172,37 @@ boolean  MinimalWiflyConfig::enterCmdMode(){
   delay(260);
   wiflySerial.print(F("$$$"));
   delay(260);
-  return checkForResponse(F("CMD"));
+  
+  //the wifly might answer with all kind of garbage before replyinf with "CMD". So we parse data until we find it...
+  TRACE_WIFLY_R(F("<-\n"));
+  waitForChar(wiflySerial,1000 ); // wait at most 1s for anything at all to come.
+  int CMDpos=0; //which position of "CMD" are we expecting next?
+  while(wiflySerial.available()){
+    char inChar=wiflySerial.read();
+	TRACE_WIFLY_R(inChar);
+	//check for the letter we expect next. This is a simple "acceptor" state machine...
+	switch(CMDpos){
+	case 0:
+		if(inChar=='C')CMDpos=1; //first letter found, now look for the 'M'
+		break;
+	case 1:
+		if(inChar=='M')CMDpos=2;else CMDpos=0;//if second letter was found, look for the 'D', else start from beginning
+		break;
+	case 2:
+		if(inChar=='D')return true;else CMDpos=0;//if third  letter was found,return "success", else start from beginning
+		break;
+	}
+    waitForChar(wiflySerial,1000 ); // wait at most 1000ms for the next char.
+  }
+  
+  return false; // no CMD was found within timeout - so settung command mode must have failed.
+}
 
+// try to exit cmd mode of wifly (will send data over the network if not currently in cmd mode)
+void MinimalWiflyConfig::exitCmdMode()                 
+{
+ sendCmdWaitAndRelay(F(""),DEBUG_WIFI_RESPONSE);     //terminate last line
+ sendCmdWaitAndRelay(F("exit"),DEBUG_WIFI_RESPONSE); //issue "exit cmd mode" command  
 }
 
 //wait at most timeout millis for another char to arrive.
@@ -204,7 +248,7 @@ boolean MinimalWiflyConfig::checkForResponse(const __FlashStringHelper *cmdStrin
   wiflySerial.setTimeout(interCharTimeoutMillis);
   int nBytesReceived=wiflySerial.readBytes(input, bufLength-2); //read data...
   input[nBytesReceived]=0; // terminate string to make printing possible
-  TRACE_WIFLY_R(F("<-\n"));
+  TRACE_WIFLY_R(F("<-\n")); //debug out: all that follows was received from the wifly
   TRACE_WIFLY_R(input);  
   if(nBytesReceived<cmdStringLength) return false;
   int foundPos=strncmp_P(input,(const char PROGMEM *)cmdString,cmdStringLength); // check for differences
@@ -217,31 +261,21 @@ boolean MinimalWiflyConfig::checkForResponse(const __FlashStringHelper *cmdStrin
   }
 } 
 
-unsigned long MinimalWiflyConfig::autoDetectBaudrate(unsigned long firstGuess){
+// try all known baudrates and issue a "change to" command.
+// we do not care about what we receive because Software serial reception doesn't work at high baudrate (sending does).
+void MinimalWiflyConfig::changeBaudRateTo(unsigned long newRate){
   //we try one baudrate after another and see if we managed to enter command mode.
-  unsigned long serialSpeeds[]={		
-    0,9600, 19200, 28800,38400, 57600, 115200                                          };
-  serialSpeeds[0]=firstGuess; //insert first guess to speed up known config.
-  int nSpeeds=7;
+  unsigned long serialSpeeds[]={9600, 19200, 28800,38400, 57600, 115200};
+  int nSpeeds=6;
   for(int i=0;i<nSpeeds;i++){
-    TRACE_WIFLY_S("Trying Baudrate: ");
+    TRACE_WIFLY_S("Trying to connect with baudrate: ");
     TRACELN_WIFLY_S(serialSpeeds[i]);
     wiflySerial.begin(serialSpeeds[i]);
-    sendCmdWaitAndRelay(F("exit"),DEBUG_WIFI_RESPONSE); //exit cmd mode first to make sure we can enter it again...
-    if(enterCmdMode()) return(serialSpeeds[i]);
-  }
-  return (0);
-}
-
-///< autodetect a working Baudrate and change the setting.
-bool MinimalWiflyConfig::changeBaudRateTo(unsigned long newRate){
-  unsigned long detectedRate=autoDetectBaudrate(newRate);
-  if(detectedRate!=0){
-    sendCmdWaitAndRelay(F("set uart baud "),(long)newRate,(bool)DEBUG_WIFI_RESPONSE); // set speed
-    sendCmdWaitAndRelay(F("save"),(bool)DEBUG_WIFI_RESPONSE);                       //reboot to apply changes
-    sendCmdWaitAndRelay(F("reboot"),(bool)DEBUG_WIFI_RESPONSE);                       //reboot to apply changes
-  }
-  else{
-    return false;
+	exitCmdMode(); // to make sure we can enter again...
+    enterCmdMode(); //try to enter cmd mode
+	sendCmdWaitAndRelay(F("set uart baud "),(long)newRate,(bool)DEBUG_WIFI_RESPONSE); // set speed
+	sendCmdWaitAndRelay(F("save"),(bool)DEBUG_WIFI_RESPONSE);                       //reboot to apply changes
+	sendCmdWaitAndRelay(F("reboot"),(bool)DEBUG_WIFI_RESPONSE);                       //reboot to apply changes
+	delay(300); // wait for the reboot to be finished
   }
 }
