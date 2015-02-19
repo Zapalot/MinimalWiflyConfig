@@ -62,7 +62,7 @@ public:
 MinimalWiflyConfig::MinimalWiflyConfig(wiflySerialType &wiflySerial,debugSerialType &debugSerial):
 wiflySerial(wiflySerial),
 debugSerial(debugSerial),
-initialTimeoutMillis(500),
+initialTimeoutMillis(1500),
 interCharTimeoutMillis(10)
 {
 }
@@ -88,8 +88,9 @@ const unsigned int protocol  ///TCP or UDP?
   if (!enterCmdMode()){ //try to enter CMD-mode... if it fails:
     TRACELN_WIFLY_S(F("Connection failed."));
 	if(setBaudRate){
-		TRACELN_WIFLY_S(F("Trying to set Baudrate..."));
+		TRACELN_WIFLY_S(F("------Trying to set Baudrate...---------"));
 		changeBaudRateTo(wiflySerialSpeed); // try to change baud rate - continue even if it didn't work
+		TRACELN_WIFLY_S(F("------finished brute force approach to setting Baudrate...---------"));
 		// initialize serial to wifly 
 		wiflySerial.begin(wiflySerialSpeed);
 		exitCmdMode(); //issue "exit cmd mode" command first to make sure we can enter it again...
@@ -118,8 +119,9 @@ const unsigned int protocol  ///TCP or UDP?
   sendCmdWaitAndRelay(F("set ip localport "),localPort,DEBUG_WIFI_RESPONSE); //set incoming port
   sendCmdWaitAndRelay(F("set ip host "),remoteHost,DEBUG_WIFI_RESPONSE);     //set outgoing target ip
   sendCmdWaitAndRelay(F("set ip remote "),remotePort,DEBUG_WIFI_RESPONSE);   //set outgoing port
+  sendCmdWaitAndRelay(F("set wlan auth 3"),DEBUG_WIFI_RESPONSE); 		     //set security to wpa [2]
   sendCmdWaitAndRelay(F("set wlan ssid "),SSID,DEBUG_WIFI_RESPONSE);         //set WIfi Name (SSID)
-  sendCmdWaitAndRelay(F("set wlan phrase "),password,DEBUG_WIFI_RESPONSE);   //set Wifi Pass 
+  sendCmdWaitAndRelay(F("set wlan p "),password,DEBUG_WIFI_RESPONSE);   //set Wifi Pass 
   sendCmdWaitAndRelay(F("set comm time "),1,DEBUG_WIFI_RESPONSE);            //set packet flush timer (increase if you get fragmented outgoingpackets
   sendCmdWaitAndRelay(F("set wlan join 1"),DEBUG_WIFI_RESPONSE);             //enable autojoin
   sendCmdWaitAndRelay(F("save"),DEBUG_WIFI_RESPONSE);                        //save settings

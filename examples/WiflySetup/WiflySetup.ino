@@ -7,7 +7,7 @@ SoftwareSerial softSerial(3,2); //The TX- and RX- Pins the Wifly is connected to
 
 #define wiflySerialType SoftwareSerial  // you can change this to either 'HardwareSerial' or 'SoftwareSerial' as you need it.
 #define DEBUG_WIFI_RESPONSE 1 //shall we print all the communication with the wifly module to the debugSerial? [0/1]
-#define DEBUG_WIFI_STATUS 1   //shall we show status wifly information on the Serial? [0/1]
+#define DEBUG_WIFI_STATUS 1   //shall we show  wifly status information on the Serial? [0/1]
 
 #include "MinimalWiflyConfig.h"
 MinimalWiflyConfig wifly (softSerial, Serial);  // first Parameter is the serial used for communication with  the Wifly, second is for debugging
